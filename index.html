@@ -30,8 +30,7 @@
 <br>
 <a id="downloadLink" style="display:none;">Download GIF</a>
 
-<script src="https://unpkg.com/gif.js.optimized/dist/gif.js"></script>
-
+<script src="gif.js"></script> <!-- LOCAL GIF.JS -->
 <script>
 let spriteImage = null;
 let animations = {};
@@ -53,7 +52,7 @@ pngInput.addEventListener("change", e => {
 
     const img = new Image();
     img.onload = () => spriteImage = img;
-    img.src = URL.createObjectURL(file); // FIX: no tainting
+    img.src = URL.createObjectURL(file);
 });
 
 /* ---------------- XML LOADING ---------------- */
@@ -96,7 +95,6 @@ xmlInput.addEventListener("change", e => {
             animations[animName].push(frame);
         }
 
-        // Sort frames by number suffix
         for (let key in animations) {
             animations[key].sort((a, b) => {
                 const na = parseInt(a.name.match(/(\d+)$/)?.[1] || 0);
@@ -163,7 +161,7 @@ gifBtn.addEventListener("click", () => {
     const gif = new GIF({
         workers: 2,
         quality: 10,
-        workerScript: "https://unpkg.com/gif.js.optimized/dist/gif.worker.js"
+        workerScript: "gif.worker.js"  // LOCAL WORKER
     });
 
     let i = 0;
