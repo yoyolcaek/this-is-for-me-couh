@@ -11,7 +11,7 @@
 </head>
 <body>
 
-<h1>FNF TextureAtlas GIF Maker (No Workers)</h1>
+<h1>FNF TextureAtlas GIF Maker (Self-Contained)</h1>
 
 <label>Upload XML (TextureAtlas):</label>
 <input type="file" id="xmlInput" accept=".xml">
@@ -146,26 +146,7 @@ previewBtn.addEventListener("click", () => {
     previewAnimation(animations[name]);
 });
 
-/* ---------------- SIMPLE GIF ENCODER ---------------- */
-function encodeGIF(frames, delay) {
-    // This is a tiny GIF encoder (no workers, no dependencies)
-    // It creates a GIF89a file from canvas frames.
-
-    const gif = new GIFEncoder();
-    gif.setRepeat(0);
-    gif.setDelay(delay);
-    gif.start();
-
-    for (let f of frames) {
-        drawFrame(f);
-        gif.addFrame(ctx);
-    }
-
-    gif.finish();
-    return gif.stream().getBlob();
-}
-
-/* ---------------- EXPORT GIF ---------------- */
+/* ---------------- EXPORT GIF (SELF-CONTAINED) ---------------- */
 gifBtn.addEventListener("click", () => {
     const name = animNameInput.value.trim();
     if (!animations[name]) {
@@ -175,9 +156,21 @@ gifBtn.addEventListener("click", () => {
 
     const frames = animations[name];
 
-    const blob = encodeGIF(frames, frameDuration);
+    const gif = new GIFEncoder();
+    gif.setRepeat(0);
+    gif.setDelay(frameDuration);
+    gif.start();
 
+    for (let f of frames) {
+        drawFrame(f);
+        gif.addFrame(ctx);
+    }
+
+    gif.finish();
+
+    const blob = gif.stream().getBlob();
     const url = URL.createObjectURL(blob);
+
     downloadLink.href = url;
     downloadLink.download = name + ".gif";
     downloadLink.style.display = "inline-block";
@@ -187,10 +180,9 @@ gifBtn.addEventListener("click", () => {
 });
 
 /* ---------------- EMBEDDED GIF ENCODER ---------------- */
-/* This is a tiny GIF encoder library (no workers, no external files) */
 class ByteArray {
     constructor() { this.data = []; }
-    writeByte(val) { this.data.push(val); }
+    writeByte(v) { this.data.push(v); }
     writeBytes(arr) { this.data.push(...arr); }
     getBlob() { return new Blob([new Uint8Array(this.data)], { type: "image/gif" }); }
 }
@@ -198,28 +190,24 @@ class ByteArray {
 class GIFEncoder {
     constructor() {
         this.stream = new ByteArray();
-        this.started = false;
-        this.repeat = -1;
         this.delay = 0;
+        this.repeat = -1;
     }
-    setRepeat(r) { this.repeat = r; }
     setDelay(d) { this.delay = d; }
+    setRepeat(r) { this.repeat = r; }
     start() {
         this.stream.writeBytes([0x47,0x49,0x46,0x38,0x39,0x61]); // GIF89a
-        this.started = true;
     }
     addFrame(ctx) {
         const w = ctx.canvas.width;
         const h = ctx.canvas.height;
-        const imgData = ctx.getImageData(0,0,w,h).data;
+        const img = ctx.getImageData(0,0,w,h).data;
 
-        // VERY simple GIF palette (not optimized)
         const palette = [];
         const indexed = [];
-        for (let i=0; i<imgData.length; i+=4) {
-            const r = imgData[i];
-            const g = imgData[i+1];
-            const b = imgData[i+2];
+
+        for (let i=0; i<img.length; i+=4) {
+            const r = img[i], g = img[i+1], b = img[i+2];
             const key = `${r},${g},${b}`;
             let idx = palette.indexOf(key);
             if (idx === -1) {
@@ -234,38 +222,32 @@ class GIFEncoder {
             const [r,g,b] = p.split(",").map(Number);
             colorTable.push(r,g,b);
         }
-
         while (colorTable.length < 256*3) colorTable.push(0);
 
-        // Logical Screen Descriptor
         this.stream.writeBytes([
-            w & 0xFF, (w>>8)&0xFF,
-            h & 0xFF, (h>>8)&0xFF,
-            0xF7, 0x00, 0x00
+            w&0xFF,(w>>8)&0xFF,
+            h&0xFF,(h>>8)&0xFF,
+            0xF7,0x00,0x00
         ]);
         this.stream.writeBytes(colorTable);
 
-        // Graphics Control Extension
         this.stream.writeBytes([
             0x21,0xF9,0x04,
             0x00,
-            this.delay & 0xFF, (this.delay>>8)&0xFF,
+            this.delay&0xFF,(this.delay>>8)&0xFF,
             0x00,
             0x00
         ]);
 
-        // Image Descriptor
         this.stream.writeBytes([
             0x2C,0,0,0,0,
-            w & 0xFF, (w>>8)&0xFF,
-            h & 0xFF, (h>>8)&0xFF,
+            w&0xFF,(w>>8)&0xFF,
+            h&0xFF,(h>>8)&0xFF,
             0x00
         ]);
 
-        // LZW minimum code size
         this.stream.writeByte(8);
 
-        // VERY simple LZW encoder
         const blocks = [];
         let block = [];
         for (let i=0; i<indexed.length; i++) {
@@ -282,10 +264,10 @@ class GIFEncoder {
             this.stream.writeBytes(b);
         }
 
-        this.stream.writeByte(0); // end of image data
+        this.stream.writeByte(0);
     }
     finish() {
-        this.stream.writeByte(0x3B); // GIF end
+        this.stream.writeByte(0x3B);
     }
 }
 </script>
