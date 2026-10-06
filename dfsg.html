@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FNF TextureAtlas PNG → GIF</title>
+<style>
+    body { font-family: Arial; background:#111; color:#eee; padding:20px; }
+    label { display:block; margin-top:10px; }
+    canvas { background:#222; margin-top:10px; }
+</style>
+</head>
+<body>
+
+<h1>FNF TextureAtlas GIF Maker</h1>
+
+<label>Upload XML (TextureAtlas):</label>
+<input type="file" id="xmlInput" accept=".xml">
+
+<label>Upload PNG spritesheet:</label>
+<input type="file" id="pngInput" accept="image/png">
+
+<label>Animation name:</label>
+<input type="text" id="animName" placeholder="BF HEY!!">
+
+<button id="previewBtn">Preview Animation</button>
+<button id="gifBtn">Export GIF</button>
+
+<br><br>
+<canvas id="canvas" width="500" height="500"></canvas>
+<br>
+<a id="downloadLink" style="display:none;">Download GIF</a>
+
+<script src="https://unpkg.com/gif.js.optimized/dist/gif.js"></script>
+
+<script>
+let spriteImage = null;
+let animations = {};
+let frameDuration = 80;
+
+const xmlInput = document.getElementById("xmlInput");
+const pngInput = document.getElementById("pngInput");
+const animNameInput = document.getElementById("animName");
+const previewBtn = document.getElementById("previewBtn");
+const gifBtn = document.getElementById("gifBtn");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const downloadLink = document.getElementById("downloadLink");
+
+/* ---------------- PNG LOADING (PATCHED) ---------------- */
+pngInput.addEventListener("change", e => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+        const img = new Image();
+        img.crossOrigin = "anonymous"; // IMPORTANT FIX
+        img.onload = () => spriteImage = img;
+        img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+});
+
+/* ---------------- XML LOADING (TextureAtlas) ---------------- */
+xmlInput.addEventListener("change", e => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(reader.result, "application/xml");
+
+        animations = {};
+
+        const subTextures = xmlDoc.getElementsByTagName("SubTexture");
+
+        for (let st of subTextures) {
+            const fullName = st.getAttribute("name");
+
+            // Animation group name (strip digits)
+            const animName = fullName.replace(/[0-9]/g, "").trim();
+
+            const frame = {
+                name: fullName,
+                x: parseInt(st.getAttribute("x")),
+                y: parseInt(st.getAttribute("y")),
+                w: parseInt(st.getAttribute("width")),
+                h: parseInt(st.getAttribute("height")),
+                frameX: parseInt(st.getAttribute("frameX") || 0),
+                frameY: parseInt(st.getAttribute("frameY") || 0),
+                frameWidth: parseInt(st.getAttribute("frameWidth") || st.getAttribute("width")),
+                frameHeight: parseInt(st.getAttribute("frameHeight") || st.getAttribute("height"))
+            };
+
+            if (!animations[animName]) animations[animName] = [];
+            animations[animName].push(frame);
+        }
+
+        // Sort frames by numeric suffix
+        for (let key in animations) {
+            animations[key].sort((a, b) => {
+                const na = parseInt(a.name.match(/(\d+)$/)?.[1] || 0);
+                const nb = parseInt(b.name.match(/(\d+)$/)?.[1] || 0);
+                return na - nb;
+            });
+        }
+
+        alert("Loaded animations: " + Object.keys(animations).join(", "));
+    };
+
+    reader.readAsText(file);
+});
+
+/* ---------------- DRAW FRAME ---------------- */
+function drawFrame(frame) {
+    if (!spriteImage || !frame) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const sx = frame.x;
+    const sy = frame.y;
+    const sw = frame.w;
+    const sh = frame.h;
+
+    const dw = frame.frameWidth;
+    const dh = frame.frameHeight;
+
+    const dx = (canvas.width - dw) / 2 + frame.frameX;
+    const dy = (canvas.height - dh) / 2 + frame.frameY;
+
+    ctx.drawImage(spriteImage, sx, sy, sw, sh, dx, dy, sw, sh);
+}
+
+/* ---------------- PREVIEW ---------------- */
+function previewAnimation(frames) {
+    let i = 0;
+    function step() {
+        drawFrame(frames[i]);
+        i = (i + 1) % frames.length;
+        setTimeout(step, frameDuration);
+    }
+    step();
+}
+
+previewBtn.addEventListener("click", () => {
+    const name = animNameInput.value.trim();
+    if (!animations[name]) {
+        alert("Animation not found: " + name);
+        return;
+    }
+    previewAnimation(animations[name]);
+});
+
+/* ---------------- EXPORT GIF (PATCHED) ---------------- */
+gifBtn.addEventListener("click", () => {
+    const name = animNameInput.value.trim();
+    if (!animations[name]) {
+        alert("Animation not found: " + name);
+        return;
+    }
+
+    const frames = animations[name];
+    const gif = new GIF({
+        workers: 2,
+        quality: 10,
+        workerScript: "https://unpkg.com/gif.js.optimized/dist/gif.worker.js"
+    });
+
+    let i = 0;
+
+    function addNextFrame() {
+        if (i >= frames.length) {
+            gif.on("finished", blob => {
+                const url = URL.createObjectURL(blob);
+
+                downloadLink.href = url;
+                downloadLink.download = name + ".gif";
+                downloadLink.textContent = "Download " + name + ".gif";
+                downloadLink.style.display = "inline-block";
+
+                // Auto-download (fix for Edge/Chrome)
+                setTimeout(() => downloadLink.click(), 50);
+            });
+            gif.render();
+            return;
+        }
+
+        drawFrame(frames[i]);
+        gif.addFrame(ctx, { copy: true, delay: frameDuration });
+        i++;
+        requestAnimationFrame(addNextFrame);
+    }
+
+    addNextFrame();
+});
+</script>
+
+</body>
+</html>
