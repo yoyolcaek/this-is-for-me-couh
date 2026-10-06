@@ -46,19 +46,16 @@ const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 const downloadLink = document.getElementById("downloadLink");
 
-/* ---------------- PNG LOADING (PATCHED) ---------------- */
+/* ---------------- PNG LOADING (FINAL FIX) ---------------- */
 pngInput.addEventListener("change", e => {
     const file = e.target.files[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-        const img = new Image();
-        img.crossOrigin = "anonymous"; // IMPORTANT FIX
-        img.onload = () => spriteImage = img;
-        img.src = reader.result;
-    };
-    reader.readAsDataURL(file);
+    const img = new Image();
+    img.onload = () => spriteImage = img;
+
+    // FIX: Use ObjectURL instead of FileReader to avoid tainted canvas
+    img.src = URL.createObjectURL(file);
 });
 
 /* ---------------- XML LOADING (TextureAtlas) ---------------- */
@@ -152,7 +149,7 @@ previewBtn.addEventListener("click", () => {
     previewAnimation(animations[name]);
 });
 
-/* ---------------- EXPORT GIF (PATCHED) ---------------- */
+/* ---------------- EXPORT GIF (FINAL FIX) ---------------- */
 gifBtn.addEventListener("click", () => {
     const name = animNameInput.value.trim();
     if (!animations[name]) {
@@ -176,10 +173,10 @@ gifBtn.addEventListener("click", () => {
 
                 downloadLink.href = url;
                 downloadLink.download = name + ".gif";
-                downloadLink.textContent = "Download " + name + ".gif";
                 downloadLink.style.display = "inline-block";
+                downloadLink.textContent = "Download " + name + ".gif";
 
-                // Auto-download (fix for Edge/Chrome)
+                // Auto-click for browsers that hide the link
                 setTimeout(() => downloadLink.click(), 50);
             });
             gif.render();
