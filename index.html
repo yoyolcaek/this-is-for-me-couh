@@ -46,19 +46,17 @@ const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 const downloadLink = document.getElementById("downloadLink");
 
-/* ---------------- PNG LOADING (FINAL FIX) ---------------- */
+/* ---------------- PNG LOADING ---------------- */
 pngInput.addEventListener("change", e => {
     const file = e.target.files[0];
     if (!file) return;
 
     const img = new Image();
     img.onload = () => spriteImage = img;
-
-    // FIX: Use ObjectURL instead of FileReader to avoid tainted canvas
-    img.src = URL.createObjectURL(file);
+    img.src = URL.createObjectURL(file); // FIX: no tainting
 });
 
-/* ---------------- XML LOADING (TextureAtlas) ---------------- */
+/* ---------------- XML LOADING ---------------- */
 xmlInput.addEventListener("change", e => {
     const file = e.target.files[0];
     if (!file) return;
@@ -74,8 +72,6 @@ xmlInput.addEventListener("change", e => {
 
         for (let st of subTextures) {
             const fullName = st.getAttribute("name");
-
-            // Animation group name (strip digits)
             const animName = fullName.replace(/[0-9]/g, "").trim();
 
             const frame = {
@@ -86,15 +82,21 @@ xmlInput.addEventListener("change", e => {
                 h: parseInt(st.getAttribute("height")),
                 frameX: parseInt(st.getAttribute("frameX") || 0),
                 frameY: parseInt(st.getAttribute("frameY") || 0),
-                frameWidth: parseInt(st.getAttribute("frameWidth") || st.getAttribute("width")),
-                frameHeight: parseInt(st.getAttribute("frameHeight") || st.getAttribute("height"))
+
+                frameWidth: st.getAttribute("frameWidth") !== null
+                    ? parseInt(st.getAttribute("frameWidth"))
+                    : parseInt(st.getAttribute("width")),
+
+                frameHeight: st.getAttribute("frameHeight") !== null
+                    ? parseInt(st.getAttribute("frameHeight"))
+                    : parseInt(st.getAttribute("height"))
             };
 
             if (!animations[animName]) animations[animName] = [];
             animations[animName].push(frame);
         }
 
-        // Sort frames by numeric suffix
+        // Sort frames by number suffix
         for (let key in animations) {
             animations[key].sort((a, b) => {
                 const na = parseInt(a.name.match(/(\d+)$/)?.[1] || 0);
@@ -149,7 +151,7 @@ previewBtn.addEventListener("click", () => {
     previewAnimation(animations[name]);
 });
 
-/* ---------------- EXPORT GIF (FINAL FIX) ---------------- */
+/* ---------------- EXPORT GIF ---------------- */
 gifBtn.addEventListener("click", () => {
     const name = animNameInput.value.trim();
     if (!animations[name]) {
@@ -176,7 +178,6 @@ gifBtn.addEventListener("click", () => {
                 downloadLink.style.display = "inline-block";
                 downloadLink.textContent = "Download " + name + ".gif";
 
-                // Auto-click for browsers that hide the link
                 setTimeout(() => downloadLink.click(), 50);
             });
             gif.render();
